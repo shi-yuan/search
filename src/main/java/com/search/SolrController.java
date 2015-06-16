@@ -32,14 +32,14 @@ public class SolrController {
     private DataSource dataSource;
 
     /**
-     * specified the core customer url
+     * specified the core url
      */
-    private static final String CORE_CUSTOMER_URL = "http://localhost:8888/solr/user";
+    private static final String CORE_URL = "http://localhost:8888/solr/user";
 
     private static HttpSolrServer server;
 
     static {
-        server = new HttpSolrServer(CORE_CUSTOMER_URL);
+        server = new HttpSolrServer(CORE_URL);
         // defaults to 0. > 1 not recommended.
         server.setMaxRetries(1);
         // establish TCP

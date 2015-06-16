@@ -30,7 +30,7 @@ allprojects {
 }
 
 dependencies {
-    //add lib/solr/*.jar files
+    // add lib/solr/*.jar files
     compile fileTree(dir: 'lib/solr', include: '*.jar')
 
     // logging
