@@ -33,6 +33,9 @@ dependencies {
     // add lib/solr/*.jar files
     compile fileTree(dir: 'lib/solr', include: '*.jar')
 
+    // add lib/es/*.jar files
+    compile fileTree(dir: 'lib/es', include: '*.jar')
+
     // logging
     compile 'org.slf4j:slf4j-api:1.7.10'
     runtime 'org.slf4j:slf4j-log4j12:1.7.10'
