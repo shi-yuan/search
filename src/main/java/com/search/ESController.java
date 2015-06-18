@@ -106,8 +106,9 @@ public class ESController {
                     .setSearchType(SearchType.DEFAULT).setFrom(0).setSize(10000);
             builder.setQuery(new QueryStringQueryBuilder("*:*"));
             SearchResponse response = builder.execute().actionGet();
-            for (SearchHit hit : response.getHits()) {
-                list.add(hit.getSource());
+            SearchHit[] hits = response.getHits().hits();
+            for (int i = 0, len = hits.length; i < Math.min(100, len); i++) {
+                list.add(hits[i].getSource());
             }
             logger.info("总时长: {}ms,  TookInMillis: {}ms, TotalHits: {}", System.currentTimeMillis() - before, response.getTookInMillis(), response.getHits().getTotalHits());
         } catch (Exception e) {
