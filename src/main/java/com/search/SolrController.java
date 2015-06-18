@@ -1,5 +1,6 @@
 package com.search;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
@@ -14,19 +15,21 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.rowset.SqlRowSet;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.sql.DataSource;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
 @Controller
 public class SolrController {
 
-    static final Logger logger = LoggerFactory.getLogger(SolrController.class);
+    private static final Logger logger = LoggerFactory.getLogger(SolrController.class);
 
     @Autowired
     private DataSource dataSource;
@@ -65,7 +68,7 @@ public class SolrController {
     /**
      * 建立索引
      */
-    @RequestMapping(value = "/index", method = RequestMethod.GET)
+    @RequestMapping(value = "/solr/index", method = RequestMethod.GET)
     @ResponseBody
     public String index() {
         indexDocsWithDB();
@@ -77,19 +80,20 @@ public class SolrController {
      */
     private void indexDocsWithDB() {
         SqlRowSet rowSet = new JdbcTemplate(dataSource).queryForRowSet("SELECT t.id, t.name, t.level, t.gender, t.address FROM user t");
-        List<SolrInputDocument> docs = new LinkedList<>();
-        SolrInputDocument doc;
+        long before = System.currentTimeMillis(), num = 0;
         if (null != rowSet) {
+            List<SolrInputDocument> docs = new LinkedList<>();
+            SolrInputDocument doc;
             while (rowSet.next()) {
                 doc = new SolrInputDocument();
-                doc.addField("id", rowSet.getInt("id"));
+                doc.addField("id", String.valueOf(rowSet.getInt("id")));
                 doc.addField("name", rowSet.getString("name"));
                 doc.addField("level", rowSet.getString("level"));
                 doc.addField("gender", rowSet.getString("gender"));
                 doc.addField("address", rowSet.getString("address"));
-                logger.info("添加文档: {}", doc);
                 docs.add(doc);
-                if (docs.size() > 100) {
+                num++;
+                if (10000 == docs.size()) {
                     commitDocs(docs);
                 }
             }
@@ -97,6 +101,7 @@ public class SolrController {
                 commitDocs(docs);
             }
         }
+        logger.info("索引文档数: {}, 花费时长: {}ms", num, System.currentTimeMillis() - before);
     }
 
     private void commitDocs(List<SolrInputDocument> docs) {
@@ -104,35 +109,42 @@ public class SolrController {
             server.add(docs);
             server.commit();
             docs.clear();
-        } catch (SolrServerException e) {
+        } catch (SolrServerException | IOException e) {
             logger.error("提交文档出现异常: {}", e.getMessage());
             e.printStackTrace();
-        } catch (IOException e) {
-            logger.error("提交文档出现异常: {}", e.getMessage());
         }
     }
 
     /**
      * 搜索
      */
-    @RequestMapping(value = "/search", method = RequestMethod.GET)
+    @RequestMapping(value = "/solr/search", method = RequestMethod.GET)
     @ResponseBody
-    public String search() throws SolrServerException {
+    public Object search() throws SolrServerException {
+        long before = System.currentTimeMillis();
         SolrQuery query = new SolrQuery();
         query.setQuery("*:*");
         query.setShowDebugInfo(true);
         query.setStart(0);
-        query.setRows(10);
-
+        query.setRows(10000);
         QueryResponse response = server.query(query);
         SolrDocumentList documents = response.getResults();
+        List<ModelMap> list = new ArrayList<>();
         if (null != documents) {
-            logger.info("id   \t   name");
-            logger.info("size: {}", documents.size());
-            for (SolrDocument doc : documents) {
-                logger.info(doc.getFieldValue("id") + ":" + "\t" + doc.getFieldValue("name"));
+            SolrDocument doc;
+            ModelMap map;
+            for (int i = 0, size = documents.size(); i < Math.min(100, size); i++) {
+                doc = documents.get(i);
+                map = new ModelMap();
+                map.put("id", doc.getFieldValue("id"));
+                map.put("name", doc.getFieldValue("name"));
+                map.put("level", doc.getFieldValue("level"));
+                map.put("gender", doc.getFieldValue("gender"));
+                map.put("address", doc.getFieldValue("address"));
+                list.add(map);
             }
         }
-        return "success";
+        logger.info("总时长: {}ms, QTime: {}ms, ElapsedTime: {}ms", System.currentTimeMillis() - before, response.getQTime(), response.getElapsedTime());
+        return ImmutableMap.builder().put("data", list).build();
     }
 }
